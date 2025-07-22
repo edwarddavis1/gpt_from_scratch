@@ -4,8 +4,11 @@ import torch.nn as nn
 from torch.nn import functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
+import matplotlib.pyplot as plt
 # %%
 # hyperparameters
+torch.manual_seed(123)
+
 batch_size = 32 # how many independent sequences will we process in parallel?
 block_size = 8 # what is the maximum context length for predictions?
 max_iters = 3000
@@ -91,19 +94,29 @@ class BigramLanguageModel(nn.Module):
 
 
 
+@torch.no_grad()
+def estimate_loss(model, eval_iters=200):
+    # Estimate the loss using a bunch of batches from both train and test
+    model.eval() # <- currently does nothing as no dropout or batch norm, but good practice
 
-# def validate(model):
-#     model.eval()
+    out = {}
+    for split in ["train", "test"]:
+        losses = torch.zeros((eval_iters,))
+        for i in range(eval_iters):
+            x, y = get_batch(split)
+            output = model(x)
+            output_flat = output.view(batch_size * block_size, vocab_size)
+            y_flat = y.view(batch_size * block_size)
+            loss = F.cross_entropy(output_flat, y_flat)
+            losses[i] = loss
 
+        out[split] = torch.mean(losses)
 
-
-#     model.train()
-
-#     return acc
+    model.train()
+    return out
 # %%
 # INITIAL GENERATION
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
 model = BigramLanguageModel().to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
@@ -112,12 +125,19 @@ epochs = 1000
 print(decoder(model.generate(n_tokens=100)[0].tolist()))
 
 # %%
+train_losses = []
+test_losses = []
+epoch_checkpoints = 100
+for epoch in range(epochs):
 
-for _ in range(epochs):
+    if epoch % epoch_checkpoints == 0:
+        losses = estimate_loss(model)
+        print(f"Train loss: {losses['train']}\nTest loss: {losses['test']}")
+        train_losses.append(losses['train'])
+        test_losses.append(losses['test'])
 
     # Select batch
     # Put batch on device
-
     x, y = get_batch('train')
     output = model(x)
 
@@ -131,6 +151,14 @@ for _ in range(epochs):
     loss.backward()
     optimizer.step()
 
-# %%
+plt.figure()
+_ = plt.grid(alpha=0.2)
+_ = plt.plot(train_losses, marker="o", label="Train")
+_ = plt.plot(test_losses, marker="o", label="Test")
+_ = plt.legend()
+_ = plt.xlabel(f"Per {epoch_checkpoints} Epochs")
+_ = plt.ylabel("Loss")
 
+
+# %%
 print(decoder(model.generate(n_tokens=100)[0].tolist()))
