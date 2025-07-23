@@ -127,6 +127,7 @@ print(decoder(model.generate(n_tokens=100)[0].tolist()))
 # %%
 train_losses = []
 test_losses = []
+noisy_train_losses = []
 epoch_checkpoints = 100
 for epoch in range(epochs):
 
@@ -147,12 +148,19 @@ for epoch in range(epochs):
 
     loss = criterion(output_flat, y_flat)
 
+    # if epoch % epoch_checkpoints == 0:
+    noisy_train_losses.append(loss.item())
+
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
 
+# %%
+import numpy as np
+
 plt.figure()
 _ = plt.grid(alpha=0.2)
+_ = plt.plot(np.linspace(0, len(train_losses), len(noisy_train_losses)), noisy_train_losses, label="Noisy Train", alpha=0.2)
 _ = plt.plot(train_losses, marker="o", label="Train")
 _ = plt.plot(test_losses, marker="o", label="Test")
 _ = plt.legend()
@@ -162,3 +170,6 @@ _ = plt.ylabel("Loss")
 
 # %%
 print(decoder(model.generate(n_tokens=100)[0].tolist()))
+
+
+# %%
